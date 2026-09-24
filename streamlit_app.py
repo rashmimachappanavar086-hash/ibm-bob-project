@@ -1,287 +1,302 @@
-# =============================================================================
-# streamlit_app.py
-# House Price Predictor — Streamlit Frontend
-#
-# Pages:
-#   Page 1 — Predict Price       : Input sliders -> Flask API -> price + gauge
-#   Page 2 — EDA Dashboard       : KPI cards, charts, correlation heatmap
-#   Page 3 — Feature Importance  : Bar chart of model feature weights
-#   Page 4 — Dataset Stats       : Raw data preview and descriptive statistics
-#
-# Usage : streamlit run streamlit_app.py
-#         UI opens at http://localhost:8501
-#
-# Requires the Flask backend (app.py) to be running on port 5000 for
-# the Predict and Feature Importance pages to work.
-# =============================================================================
 
-import requests
-import numpy as np
+import os
+import joblib
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
-from pathlib import Path
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-API_BASE  = "http://127.0.0.1:5000"
-BASE_DIR  = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_DIR / "data" / "house_price_regression_dataset.csv"
-
+import matplotlib.pyplot as plt
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 st.set_page_config(
     page_title="House Price Predictor",
     page_icon="🏠",
-    layout="wide",
+    layout="wide"
 )
-
-# ---------------------------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------------------------
-
+# ============================================================
+# PATH CONFIGURATION
+# ============================================================
+# streamlit_app.py is inside:
+# house_price_project/frontend/
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BASE_DIR)
+DATA_PATH = os.path.join(
+    ROOT_DIR,
+    "house_price_regression_dataset.csv"
+)
+MODEL_PATH = os.path.join(
+    ROOT_DIR,
+    "model.pkl"
+)
+SCALER_PATH = os.path.join(
+    ROOT_DIR,
+    "scaler.pkl"
+)
+# ============================================================
+# FEATURES
+# ============================================================
+FEATURES = [
+    "Square_Footage",
+    "Num_Bedrooms",
+    "Num_Bathrooms",
+    "Year_Built",
+    "Lot_Size",
+    "Garage_Size",
+    "Neighborhood_Quality"
+]
+TARGET = "House_Price"
+# ============================================================
+# LOAD DATA
+# ============================================================
 @st.cache_data
-def load_data() -> pd.DataFrame:
-    """Load and cache the dataset from disk."""
+def load_data():
+    if not os.path.exists(DATA_PATH):
+        st.error(f"Dataset not found: {DATA_PATH}")
+        return pd.DataFrame()
     return pd.read_csv(DATA_PATH)
-
-
-def api_predict(payload: dict) -> dict:
-    """POST to /predict and return the JSON response."""
-    try:
-        r = requests.post(f"{API_BASE}/predict", json=payload, timeout=5)
-        return r.json()
-    except requests.exceptions.ConnectionError:
-        return {"error": "Cannot reach the Flask API. Is it running on port 5000?"}
-
-
-def api_feature_importance() -> list:
-    """GET /feature-importance and return list of dicts."""
-    try:
-        r = requests.get(f"{API_BASE}/feature-importance", timeout=5)
-        return r.json()
-    except requests.exceptions.ConnectionError:
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Sidebar navigation
-# ---------------------------------------------------------------------------
-st.sidebar.image("https://img.icons8.com/fluency/96/000000/home.png", width=64)
-st.sidebar.title("House Price Predictor")
+# ============================================================
+# LOAD MODEL
+# ============================================================
+@st.cache_resource
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        st.error(f"Model file not found: {MODEL_PATH}")
+        return None, None
+    if not os.path.exists(SCALER_PATH):
+        st.error(f"Scaler file not found: {SCALER_PATH}")
+        return None, None
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    return model, scaler
+df = load_data()
+model, scaler = load_model()
+# ============================================================
+# SIDEBAR
+# ============================================================
+st.sidebar.title("🏠 House Price Predictor")
 page = st.sidebar.radio(
     "Navigate",
-    ["🏠 Predict Price", "📊 EDA Dashboard", "📈 Feature Importance", "📋 Dataset Stats"],
+    [
+        "🏠 Predict Price",
+        "📊 EDA Dashboard",
+        "📈 Feature Importance",
+        "📋 Dataset Stats"
+    ]
 )
 st.sidebar.markdown("---")
-st.sidebar.caption("Backend: Flask  |  Frontend: Streamlit  |  ML: scikit-learn")
-
-
-# ===========================================================================
+st.sidebar.write("**Backend:** Streamlit")
+st.sidebar.write("**ML:** Scikit-learn")
+st.sidebar.write("**Model:** House Price Regression")
+# ============================================================
 # PAGE 1 — PREDICT PRICE
-# ===========================================================================
+# ============================================================
 if page == "🏠 Predict Price":
     st.title("🏠 House Price Predictor")
-    st.markdown(
-        "Adjust the sliders to describe the property, then click **Predict** "
-        "to get an AI-estimated price."
+    st.write(
+        "Enter the house details below to estimate its price."
     )
-    st.markdown("---")
-
+    if model is None or scaler is None:
+        st.error("Model or scaler could not be loaded.")
+        st.stop()
     col1, col2 = st.columns(2)
-
     with col1:
-        square_footage       = st.slider("Square Footage (sq ft)",    500,  6000, 2000, step=50)
-        num_bedrooms         = st.slider("Number of Bedrooms",          1,     6,    3)
-        num_bathrooms        = st.slider("Number of Bathrooms",         1,     5,    2)
-        year_built           = st.slider("Year Built",               1950,  2024, 2000)
-
+        square_footage = st.slider(
+            "Square Footage (sq ft)",
+            min_value=500,
+            max_value=5000,
+            value=2000,
+            step=50
+        )
+        num_bedrooms = st.slider(
+            "Number of Bedrooms",
+            min_value=1,
+            max_value=10,
+            value=3
+        )
+        num_bathrooms = st.slider(
+            "Number of Bathrooms",
+            min_value=1,
+            max_value=8,
+            value=2
+        )
+        year_built = st.slider(
+            "Year Built",
+            min_value=1950,
+            max_value=2025,
+            value=2000
+        )
     with col2:
-        lot_size             = st.slider("Lot Size (acres)",           0.1,  10.0,  2.0, step=0.1)
-        garage_size          = st.selectbox("Garage Size (cars)",     [0, 1, 2, 3])
-        neighborhood_quality = st.slider("Neighborhood Quality (1–10)", 1,   10,    5)
-
+        lot_size = st.slider(
+            "Lot Size (acres)",
+            min_value=0.1,
+            max_value=10.0,
+            value=2.0,
+            step=0.1
+        )
+        garage_size = st.selectbox(
+            "Garage Size (cars)",
+            [0, 1, 2, 3, 4]
+        )
+        neighborhood_quality = st.slider(
+            "Neighborhood Quality (1-10)",
+            min_value=1,
+            max_value=10,
+            value=5
+        )
     st.markdown("---")
-
-    if st.button("Predict Price", use_container_width=True):
-        payload = {
-            "Square_Footage":       square_footage,
-            "Num_Bedrooms":         num_bedrooms,
-            "Num_Bathrooms":        num_bathrooms,
-            "Year_Built":           year_built,
-            "Lot_Size":             lot_size,
-            "Garage_Size":          garage_size,
-            "Neighborhood_Quality": neighborhood_quality,
-        }
-
-        with st.spinner("Getting prediction from model..."):
-            result = api_predict(payload)
-
-        if "error" in result:
-            st.error(f"Error: {result['error']}")
-        else:
-            price = result["predicted_price"]
-            st.success(f"### Estimated House Price:  ${price:,.2f}")
-
-            # Price gauge chart
-            fig = go.Figure(go.Indicator(
-                mode  = "gauge+number",
-                value = price,
-                title = {"text": "Predicted Price (USD)", "font": {"size": 16}},
-                gauge = {
-                    "axis" : {"range": [50_000, 1_500_000]},
-                    "bar"  : {"color": "#3b82d4"},
-                    "steps": [
-                        {"range": [50_000,   400_000], "color": "#d1fae5"},
-                        {"range": [400_000,  800_000], "color": "#fef3c7"},
-                        {"range": [800_000, 1_500_000],"color": "#fee2e2"},
-                    ],
-                },
-                number = {"prefix": "$", "valueformat": ",.0f"},
-            ))
-            fig.update_layout(height=300, margin=dict(t=50, b=0))
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Input summary table
-            st.markdown("#### Your Input Summary")
-            summary = pd.DataFrame([payload]).T.rename(columns={0: "Value"})
-            st.dataframe(summary, use_container_width=True)
-
-
-# ===========================================================================
+    if st.button(
+        "💰 Predict Price",
+        use_container_width=True
+    ):
+        try:
+            input_data = pd.DataFrame(
+                [[
+                    square_footage,
+                    num_bedrooms,
+                    num_bathrooms,
+                    year_built,
+                    lot_size,
+                    garage_size,
+                    neighborhood_quality
+                ]],
+                columns=FEATURES
+            )
+            # Scale input
+            input_scaled = scaler.transform(input_data)
+            # Predict
+            prediction = model.predict(input_scaled)[0]
+            st.success(
+                f"🏠 Estimated House Price: ₹{prediction:,.2f}"
+            )
+        except Exception as e:
+            st.error(
+                f"Prediction error: {str(e)}"
+            )
+# ============================================================
 # PAGE 2 — EDA DASHBOARD
-# ===========================================================================
+# ============================================================
 elif page == "📊 EDA Dashboard":
     st.title("📊 Exploratory Data Analysis")
-    df = load_data()
-
-    # KPI metrics
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Total Properties",   f"{len(df):,}")
-    k2.metric("Avg House Price",    f"${df['House_Price'].mean():,.0f}")
-    k3.metric("Avg Square Footage", f"{df['Square_Footage'].mean():,.0f} sq ft")
-    k4.metric("Avg Bedrooms",       f"{df['Num_Bedrooms'].mean():.1f}")
-
-    st.markdown("---")
-
-    # Row 1
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("House Price Distribution")
-        fig = px.histogram(
-            df, x="House_Price", nbins=40,
-            color_discrete_sequence=["#3b82d4"],
-            labels={"House_Price": "House Price (USD)"},
-        )
-        fig.update_layout(bargap=0.05, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.subheader("Price vs Square Footage")
-        fig = px.scatter(
-            df, x="Square_Footage", y="House_Price",
-            color="Num_Bedrooms",
-            color_continuous_scale="Blues",
-            opacity=0.7,
-            labels={"Square_Footage": "Square Footage", "House_Price": "Price (USD)"},
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Row 2
-    col3, col4 = st.columns(2)
-
-    with col3:
-        st.subheader("Price by Number of Bedrooms")
-        fig = px.box(
-            df, x="Num_Bedrooms", y="House_Price",
-            color="Num_Bedrooms",
-            labels={"House_Price": "Price (USD)", "Num_Bedrooms": "Bedrooms"},
-        )
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col4:
-        st.subheader("Price vs Neighborhood Quality")
-        fig = px.scatter(
-            df, x="Neighborhood_Quality", y="House_Price",
-            trendline="ols",
-            color_discrete_sequence=["#7c5cd8"],
-            labels={
-                "Neighborhood_Quality": "Neighborhood Quality (1–10)",
-                "House_Price": "Price (USD)",
-            },
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Correlation heatmap
-    st.subheader("Feature Correlation Heatmap")
-    corr = df.corr(numeric_only=True).round(2)
-    fig  = px.imshow(
-        corr,
-        text_auto=True,
-        color_continuous_scale="RdBu_r",
-        aspect="auto",
-        zmin=-1, zmax=1,
+    if df.empty:
+        st.warning("Dataset is not available.")
+        st.stop()
+    st.subheader("Dataset Preview")
+    st.dataframe(
+        df.head(10),
+        use_container_width=True
     )
-    fig.update_layout(height=450)
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# ===========================================================================
+    st.subheader("House Price Distribution")
+    if TARGET in df.columns:
+        fig, ax = plt.subplots()
+        ax.hist(
+            df[TARGET].dropna(),
+            bins=30
+        )
+        ax.set_xlabel("House Price")
+        ax.set_ylabel("Number of Houses")
+        ax.set_title("House Price Distribution")
+        st.pyplot(fig)
+    st.subheader("Correlation Matrix")
+    numeric_df = df.select_dtypes(
+        include="number"
+    )
+    if not numeric_df.empty:
+        correlation = numeric_df.corr()
+        st.dataframe(
+            correlation.style.background_gradient(
+                cmap="Blues"
+            ),
+            use_container_width=True
+        )
+# ============================================================
 # PAGE 3 — FEATURE IMPORTANCE
-# ===========================================================================
+# ============================================================
 elif page == "📈 Feature Importance":
     st.title("📈 Feature Importance")
-    st.markdown(
-        "Shows which input features have the greatest influence on the "
-        "model's price predictions. Data comes live from the Flask API."
-    )
-    st.markdown("---")
-
-    data = api_feature_importance()
-
-    if not data or (isinstance(data, dict) and "error" in data):
-        st.error("Could not load feature importance. Make sure the Flask API is running on port 5000.")
-    else:
-        fi_df = pd.DataFrame(data)
-
-        fig = px.bar(
-            fi_df.sort_values("importance"),
-            x="importance",
-            y="feature",
-            orientation="h",
-            color="importance",
-            color_continuous_scale="Blues",
-            labels={"importance": "Importance Score", "feature": "Feature"},
-            title="Feature Importance (higher = stronger influence on price)",
+    if model is None:
+        st.warning("Model is not available.")
+        st.stop()
+    importance = None
+    # Standard tree-based models
+    if hasattr(model, "feature_importances_"):
+        importance = model.feature_importances_
+    # Some models expose coefficients
+    elif hasattr(model, "coef_"):
+        importance = abs(model.coef_)
+        if len(importance.shape) > 1:
+            importance = importance[0]
+    if importance is not None:
+        importance_df = pd.DataFrame({
+            "Feature": FEATURES,
+            "Importance": importance
+        })
+        importance_df = importance_df.sort_values(
+            "Importance",
+            ascending=False
         )
-        fig.update_layout(showlegend=False, height=420)
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("#### Importance Scores Table")
-        st.dataframe(fi_df, use_container_width=True)
-
-
-# ===========================================================================
+        st.dataframe(
+            importance_df,
+            use_container_width=True
+        )
+        fig, ax = plt.subplots()
+        ax.barh(
+            importance_df["Feature"],
+            importance_df["Importance"]
+        )
+        ax.set_xlabel("Importance")
+        ax.set_ylabel("Feature")
+        ax.set_title("Feature Importance")
+        ax.invert_yaxis()
+        st.pyplot(fig)
+    else:
+        st.info(
+            "Feature importance is not directly available "
+            "for this model."
+        )
+# ============================================================
 # PAGE 4 — DATASET STATS
-# ===========================================================================
+# ============================================================
 elif page == "📋 Dataset Stats":
     st.title("📋 Dataset Statistics")
-    df = load_data()
-
-    st.markdown("### Dataset Preview  (first 50 rows)")
-    st.dataframe(df.head(50), use_container_width=True)
-
-    st.markdown("### Descriptive Statistics")
-    st.dataframe(df.describe().round(2), use_container_width=True)
-
-    st.markdown("### Missing Values Check")
-    missing         = df.isnull().sum().reset_index()
-    missing.columns = ["Feature", "Missing Count"]
-    st.dataframe(missing, use_container_width=True)
-
-    st.markdown("### Data Types")
-    dtypes         = df.dtypes.reset_index()
-    dtypes.columns = ["Feature", "Data Type"]
-    st.dataframe(dtypes, use_container_width=True)
+    if df.empty:
+        st.warning("Dataset is not available.")
+        st.stop()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(
+            "Rows",
+            df.shape[0]
+        )
+    with col2:
+        st.metric(
+            "Columns",
+            df.shape[1]
+        )
+    with col3:
+        st.metric(
+            "Missing Values",
+            int(df.isnull().sum().sum())
+        )
+    with col4:
+        st.metric(
+            "Duplicate Rows",
+            int(df.duplicated().sum())
+        )
+    st.subheader("Column Information")
+    info_df = pd.DataFrame({
+        "Column": df.columns,
+        "Data Type": df.dtypes.astype(str),
+        "Missing Values": df.isnull().sum(),
+        "Unique Values": [
+            df[column].nunique()
+            for column in df.columns
+        ]
+    })
+    st.dataframe(
+        info_df,
+        use_container_width=True
+    )
+    st.subheader("Statistical Summary")
+    st.dataframe(
+        df.describe(),
+        use_container_width=True
+    )
