@@ -58,7 +58,7 @@ SCALER_PATH = os.path.join(
     "scaler.pkl"
 )
 SCALER_PATH = os.path.join(
-    ROOT_DIR,
+    BASE_DIR,
     "scaler.pkl"
 )
 # ============================================================
