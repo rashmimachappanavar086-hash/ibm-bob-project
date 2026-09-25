@@ -17,15 +17,44 @@ st.set_page_config(
 # ============================================================
 # streamlit_app.py is inside:
 # house_price_project/frontend/
+# ================================
+# PATH CONFIGURATION
+# ================================
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
+
 DATA_PATH = os.path.join(
-    ROOT_DIR,
+    BASE_DIR,
     "house_price_regression_dataset.csv"
 )
+
 MODEL_PATH = os.path.join(
-    ROOT_DIR,
+    BASE_DIR,
     "model.pkl"
+)
+
+SCALER_PATH = os.path.join(
+    BASE_DIR,
+    "scaler.pkl"
+# ================================
+# PATH CONFIGURATION
+# ================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DATA_PATH = os.path.join(
+    BASE_DIR,
+    "house_price_regression_dataset.csv"
+)
+
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "model.pkl"
+)
+
+SCALER_PATH = os.path.join(
+    BASE_DIR,
+    "scaler.pkl"
 )
 SCALER_PATH = os.path.join(
     ROOT_DIR,
