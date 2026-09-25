@@ -20,23 +20,15 @@ st.set_page_config(
 # ================================
 # PATH CONFIGURATION
 # ================================
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Folder containing streamlit_app.py
+BASE_DIR = Path(__file__).resolve().parent
 
-DATA_PATH = os.path.join(
-    BASE_DIR,
-    "house_price_regression_dataset.csv"
-)
+DATA_PATH = BASE_DIR / "house_price_regression_dataset.csv"
+MODEL_PATH = BASE_DIR / "model.pkl"
+SCALER_PATH = BASE_DIR / "scaler.pkl"
 
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "model.pkl"
-)
-
-SCALER_PATH = os.path.join(
-    BASE_DIR,
-    "scaler.pkl"
-)
 # ================================
 # PATH CONFIGURATION
 # ================================
