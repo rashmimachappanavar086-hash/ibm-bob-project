@@ -36,6 +36,7 @@ MODEL_PATH = os.path.join(
 SCALER_PATH = os.path.join(
     BASE_DIR,
     "scaler.pkl"
+)
 # ================================
 # PATH CONFIGURATION
 # ================================
